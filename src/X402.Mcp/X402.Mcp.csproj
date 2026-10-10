@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Egoushka.X402.Mcp</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Yehor Hrabovskyi</Authors>
+    <Description>x402 payments for MCP tool calls in .NET: mark a tool with [PaidTool] and agents pay per call in USDC, following the x402 v2 MCP transport.</Description>
+    <PackageTags>x402;mcp;model-context-protocol;payments;usdc;ai-agents</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/Egoushka/x402-mcp-dotnet</RepositoryUrl>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
+    <PackageReference Include="x402" Version="2.3.0" />
+    <PackageReference Include="x402.Client" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <InternalsVisibleTo Include="X402.Mcp.Tests" />
+  </ItemGroup>
+
+</Project>

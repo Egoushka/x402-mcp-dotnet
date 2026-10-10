@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="x402.Client.EVM" Version="2.3.0" />
+    <!-- Nethereum pulls Newtonsoft.Json 11.0.2, which has a known vulnerability. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/X402.Mcp/X402.Mcp.csproj" />
+  </ItemGroup>
+
+</Project>
