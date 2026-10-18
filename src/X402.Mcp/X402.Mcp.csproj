@@ -5,10 +5,15 @@
     <Version>0.1.0</Version>
     <Authors>Yehor Hrabovskyi</Authors>
     <Description>x402 payments for MCP tool calls in .NET: mark a tool with [PaidTool] and agents pay per call in USDC, following the x402 v2 MCP transport.</Description>
-    <PackageTags>x402;mcp;model-context-protocol;payments;usdc;ai-agents</PackageTags>
+    <PackageTags>x402;mcp;model-context-protocol;mcp-server;payments;usdc;ai-agents;agentic-payments</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/Egoushka/x402-mcp-dotnet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Egoushka/x402-mcp-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
