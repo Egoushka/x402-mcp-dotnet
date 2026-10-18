@@ -1,7 +1,6 @@
 # x402-mcp-dotnet
 
 [![CI](https://github.com/Egoushka/x402-mcp-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/Egoushka/x402-mcp-dotnet/actions/workflows/ci.yml)
-[![NuGet](https://img.shields.io/nuget/v/Egoushka.X402.Mcp.svg)](https://www.nuget.org/packages/Egoushka.X402.Mcp)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Egoushka/x402-mcp-dotnet/blob/main/LICENSE)
 
 Paid MCP tools for .NET. Put `[PaidTool("10000")]` on a tool, and an AI agent pays 0.01 USDC per call before the tool runs.
@@ -10,8 +9,11 @@ It implements the [x402 v2 MCP transport](https://github.com/coinbase/x402/blob/
 
 ## Install
 
+Not on NuGet yet (package id `Egoushka.X402.Mcp`, release workflow is in place). Until the first release, clone the repo and reference the project:
+
 ```bash
-dotnet add package Egoushka.X402.Mcp
+git clone https://github.com/Egoushka/x402-mcp-dotnet
+dotnet add reference x402-mcp-dotnet/src/X402.Mcp/X402.Mcp.csproj
 ```
 
 Targets .NET 10.
