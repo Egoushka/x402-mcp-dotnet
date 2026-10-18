@@ -1,8 +1,39 @@
 # x402-mcp-dotnet
 
+[![CI](https://github.com/Egoushka/x402-mcp-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/Egoushka/x402-mcp-dotnet/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/Egoushka.X402.Mcp.svg)](https://www.nuget.org/packages/Egoushka.X402.Mcp)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Egoushka/x402-mcp-dotnet/blob/main/LICENSE)
+
 Paid MCP tools for .NET. Put `[PaidTool("10000")]` on a tool, and an AI agent pays 0.01 USDC per call before the tool runs.
 
 It implements the [x402 v2 MCP transport](https://github.com/coinbase/x402/blob/main/specs/transports-v2/mcp.md) for the official [ModelContextProtocol C# SDK](https://github.com/modelcontextprotocol/csharp-sdk), on top of [michielpost/x402-dotnet](https://github.com/michielpost/x402-dotnet) for the protocol types, the facilitator client and the EVM wallet. Other .NET x402 libraries cover HTTP endpoints; this one covers MCP tool calls.
+
+## Install
+
+```bash
+dotnet add package Egoushka.X402.Mcp
+```
+
+Targets .NET 10.
+
+## Quick start
+
+```csharp
+builder.Services.WithHttpFacilitator("https://x402.org/facilitator/");
+builder.Services.AddMcpServer()
+    .WithHttpTransport()
+    .WithTools<RateTools>()
+    .WithX402Payments(o => o.PayTo = "0xYourAddress");
+
+[McpServerToolType]
+public sealed class RateTools
+{
+    [McpServerTool(Name = "nbu_rate"), PaidTool("1000")] // 0.001 USDC per call
+    public static Task<string> NbuRate(string currency) => ...;
+}
+```
+
+An agent calls it with `mcpClient.CallPaidToolAsync("nbu_rate", args, wallet)`, which pays only when the server asks and only within the wallet's allowances. Details below.
 
 ## How a paid call works
 

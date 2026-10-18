@@ -1,0 +1,30 @@
+name: release
+
+# Publishes to nuget.org with Trusted Publishing (no stored API key).
+# One-time setup: a nuget.org Trusted Publishing policy for Egoushka/x402-mcp-dotnet, workflow file release.yml,
+# and the repository secret NUGET_USER set to the nuget.org profile name.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet test -c Release
+      - run: dotnet pack src/X402.Mcp -c Release -o artifacts -p:Version=${GITHUB_REF_NAME#v} -p:ContinuousIntegrationBuild=true
+      - uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+      - run: gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
