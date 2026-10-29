@@ -1,0 +1,66 @@
+# Runs x402-conformance-svm (https://github.com/atsp-protocol/x402-conformance) against samples/PaidMcpServer.
+# Version 1.6.0 grades plain HTTP GET routes (402 + PAYMENT-REQUIRED header); it has no MCP mode, and the sample's only
+# route is JSON-RPC over POST /mcp. So the probe steps below record that mismatch, not a verdict on the payment filter.
+# Safe by construction: no secrets, read-only token, loopback only, a pinned package. The tool pays with random test
+# bytes against its own facilitator double on 127.0.0.1; it holds no key and never reaches a chain (source read at 1.6.0).
+name: x402-conformance
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CONFORMANCE_VERSION: 1.6.0
+  PORT: "5080"
+  X402__PayTo: "0x000000000000000000000000000000000000dEaD"
+  npm_config_ignore_scripts: "true"
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+      - run: dotnet build samples/PaidMcpServer -c Release
+      - name: Run conformance (informational)
+        shell: bash
+        run: |
+          mkdir -p out
+          pkg="x402-conformance-svm@${CONFORMANCE_VERSION}"
+          npx -y "$pkg" --version | tee out/version.txt
+
+          # The brief's `mcp --url ... --tool ...` mode: expected to be rejected as a usage error.
+          npx -y "$pkg" mcp --url "http://127.0.0.1:${PORT}/mcp" --tool nbu_rate > out/mcp.txt 2>&1 || echo "mcp exit $?" >> out/mcp.txt
+
+          # R0-R10: the tool starts the server itself and hands it its facilitator double through X402_FACILITATOR_URL.
+          # No server code reads that variable; the sample reads X402__FacilitatorUrl, so pass it through.
+          server="dotnet samples/PaidMcpServer/bin/Release/net10.0/PaidMcpServer.dll --urls http://127.0.0.1:${PORT}"
+          npx -y "$pkg" probe --resource "http://127.0.0.1:${PORT}/mcp" --out out/probe.json \
+            --start "X402__FacilitatorUrl=\"\$X402_FACILITATOR_URL/\" $server" > out/probe.txt 2>&1 \
+            || echo "probe exit $?" >> out/probe.txt
+
+          # P1-P7: one unpaid GET against a server this step starts, with the facilitator pointed at a dead loopback port.
+          X402__FacilitatorUrl="http://127.0.0.1:9/" $server > out/server.log 2>&1 &
+          server_pid=$!
+          for _ in $(seq 1 30); do curl -s -o /dev/null "http://127.0.0.1:${PORT}/mcp" && break; sleep 1; done
+          npx -y "$pkg" resource --url "http://127.0.0.1:${PORT}/mcp" --out out/resource.json > out/resource.txt 2>&1 \
+            || echo "resource exit $?" >> out/resource.txt
+          if kill -0 "$server_pid" 2>/dev/null; then kill "$server_pid"; fi
+
+          { echo '### x402-conformance-svm '"${CONFORMANCE_VERSION}"; for f in mcp probe resource; do echo "#### $f"; echo '```'; tail -n 40 "out/$f.txt"; echo '```'; done; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: x402-conformance
+          path: out/
