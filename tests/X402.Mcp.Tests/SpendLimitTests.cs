@@ -33,7 +33,7 @@ public sealed class SpendLimitTests : IAsyncLifetime
         {
             try
             {
-                await _client.CallPaidToolAsync("forecast", Kyiv, _wallet, limiter, cancellationToken: Ct);
+                await _client.CallPaidToolAsync("forecast", Kyiv, _wallet, limiter, "test", Ct);
                 paid++;
             }
             catch (X402PaymentException ex)
@@ -55,7 +55,7 @@ public sealed class SpendLimitTests : IAsyncLifetime
     {
         var limiter = new X402SpendLimiter(new X402SpendLimits { PerCall = 9_999 });
 
-        var ex = await Assert.ThrowsAsync<X402PaymentException>(() => _client.CallPaidToolAsync("forecast", Kyiv, _wallet, limiter, cancellationToken: Ct));
+        var ex = await Assert.ThrowsAsync<X402PaymentException>(() => _client.CallPaidToolAsync("forecast", Kyiv, _wallet, limiter, "test", Ct));
 
         Assert.Contains("per-call", ex.Message);
         Assert.Empty(_server.Facilitator.Verified);
@@ -73,6 +73,59 @@ public sealed class SpendLimitTests : IAsyncLifetime
         Assert.Contains("per-server", ex.Message);
 
         await _client.CallPaidToolAsync("forecast", Kyiv, _wallet, limiter, "b", Ct);
+    }
+
+    [Fact]
+    public async Task Parallel_calls_never_exceed_the_cap()
+    {
+        var limiter = new X402SpendLimiter(new X402SpendLimits { PerDay = 100_000 });   // 10 calls
+
+        var results = await Task.WhenAll(Enumerable.Range(0, 30).Select(async _ =>
+        {
+            try { await _client.CallPaidToolAsync("forecast", Kyiv, _wallet, limiter, "test", Ct); return true; }
+            catch (X402PaymentException) { return false; }
+        }));
+
+        Assert.Equal(10, results.Count(r => r));
+    }
+
+    [Fact]
+    public async Task Other_asset_is_refused_before_signing()
+    {
+        var limiter = new X402SpendLimiter(new X402SpendLimits { Asset = "0x0000000000000000000000000000000000000001" });
+
+        var ex = await Assert.ThrowsAsync<X402PaymentException>(() => _client.CallPaidToolAsync("forecast", Kyiv, _wallet, limiter, "test", Ct));
+
+        Assert.Contains("only allows", ex.Message);
+        Assert.Empty(_server.Facilitator.Verified);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("0")]
+    public void Non_positive_amount_is_refused(string amount)
+    {
+        var limiter = new X402SpendLimiter(new X402SpendLimits { PerDay = 100 });
+
+        Assert.NotNull(limiter.TryReserve("s", System.Numerics.BigInteger.Parse(amount), out _));
+        Assert.Equal(0, limiter.SpentToday);
+    }
+
+    [Fact]
+    public void Negative_caps_are_rejected() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => new X402SpendLimiter(new X402SpendLimits { PerDay = -1 }));
+
+    [Fact]
+    public void Release_twice_gives_back_once()
+    {
+        var limiter = new X402SpendLimiter(new X402SpendLimits { PerDay = 100 }, new FakeTimeProvider());
+
+        Assert.Null(limiter.TryReserve("s", 40, out var first));
+        Assert.Null(limiter.TryReserve("s", 40, out _));
+        limiter.Release(first);
+        limiter.Release(first);
+
+        Assert.Equal(40, limiter.SpentToday);
     }
 
     [Fact]

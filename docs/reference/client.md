@@ -31,8 +31,10 @@ var limiter = new X402SpendLimiter(new X402SpendLimits
     PerServer = 2_000_000, // lifetime of the limiter, per serverKey
 });
 
-var result = await mcpClient.CallPaidToolAsync("nbu_rate", args, wallet, limiter, serverKey: "nbu");
+var result = await mcpClient.CallPaidToolAsync("nbu_rate", args, wallet, limiter, "nbu");
 ```
 
-A payment over any cap throws `X402PaymentException` before anything is signed. `serverKey` defaults to the connected
-server's name. Use one limiter per asset; state is in memory and resets when the process restarts.
+A payment over any cap throws `X402PaymentException` before anything is signed. Take `serverKey` from your own config,
+not from the server's self-reported name, or a hostile server can dodge its cap. Set `Asset` on the limits to refuse other
+assets. The cap counts payments signed, not settled: a paid call that fails after signing still counts. State is in
+memory and resets when the process restarts.

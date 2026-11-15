@@ -13,6 +13,9 @@ public sealed class X402SpendLimits
 
     /// <summary>Most all payments to one server may cost over the limiter's lifetime.</summary>
     public BigInteger? PerServer { get; init; }
+
+    /// <summary>When set, payments in any other asset (contract address, case-insensitive) are refused, so amounts are never mixed.</summary>
+    public string? Asset { get; init; }
 }
 
 /// <summary>
@@ -20,17 +23,35 @@ public sealed class X402SpendLimits
 /// settled, so it errs on the side of refusing. Amounts are in one asset: use one limiter per asset. State is in
 /// memory and resets when the process restarts. Thread safe.
 /// </summary>
-public sealed class X402SpendLimiter(X402SpendLimits limits, TimeProvider? clock = null)
+public sealed class X402SpendLimiter
 {
     /// <summary>A payment counted against the caps; hand it to <see cref="Release"/> if the payment is never sent.</summary>
-    public readonly record struct Reservation(string Server, BigInteger Amount, DateTimeOffset At);
+    public readonly record struct Reservation(Guid Id, string Server, BigInteger Amount, DateTimeOffset At);
 
     private static readonly TimeSpan Day = TimeSpan.FromHours(24);
 
-    private readonly TimeProvider _clock = clock ?? TimeProvider.System;
+    private readonly X402SpendLimits _limits;
+    private readonly TimeProvider _clock;
+    private readonly Dictionary<Guid, Reservation> _live = [];
     private readonly Lock _gate = new();
     private readonly List<Reservation> _recent = [];
     private readonly Dictionary<string, BigInteger> _perServer = [];
+
+    /// <summary>Creates a limiter. Caps must not be negative.</summary>
+    public X402SpendLimiter(X402SpendLimits limits, TimeProvider? clock = null)
+    {
+        ArgumentNullException.ThrowIfNull(limits);
+        if (limits.PerCall < 0 || limits.PerDay < 0 || limits.PerServer < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limits), "Caps must not be negative.");
+        }
+
+        _limits = limits;
+        _clock = clock ?? TimeProvider.System;
+    }
+
+    /// <summary>The asset payments are limited to, if any.</summary>
+    public string? Asset => _limits.Asset;
 
     /// <summary>Spent in the last 24 hours.</summary>
     public BigInteger SpentToday
@@ -49,15 +70,20 @@ public sealed class X402SpendLimiter(X402SpendLimits limits, TimeProvider? clock
     public string? TryReserve(string server, BigInteger amount, out Reservation reservation)
     {
         reservation = default;
+        if (amount <= 0)
+        {
+            return $"Payment amount {amount} is not positive.";
+        }
+
         lock (_gate)
         {
             Prune();
-            if (limits.PerCall is { } perCall && amount > perCall)
+            if (_limits.PerCall is { } perCall && amount > perCall)
             {
                 return $"Payment of {amount} is over the per-call cap of {perCall}.";
             }
 
-            if (limits.PerDay is { } perDay)
+            if (_limits.PerDay is { } perDay)
             {
                 var today = _recent.Aggregate(BigInteger.Zero, (sum, r) => sum + r.Amount);
                 if (today + amount > perDay)
@@ -67,13 +93,14 @@ public sealed class X402SpendLimiter(X402SpendLimits limits, TimeProvider? clock
             }
 
             _perServer.TryGetValue(server, out var spent);
-            if (limits.PerServer is { } perServer && spent + amount > perServer)
+            if (_limits.PerServer is { } perServer && spent + amount > perServer)
             {
                 return $"Payment of {amount} would take spend on '{server}' from {spent} over the per-server cap of {perServer}.";
             }
 
-            reservation = new Reservation(server, amount, _clock.GetUtcNow());
+            reservation = new Reservation(Guid.NewGuid(), server, amount, _clock.GetUtcNow());
             _recent.Add(reservation);
+            _live[reservation.Id] = reservation;
             _perServer[server] = spent + amount;
             return null;
         }
@@ -84,8 +111,9 @@ public sealed class X402SpendLimiter(X402SpendLimits limits, TimeProvider? clock
     {
         lock (_gate)
         {
-            if (_recent.Remove(reservation))
+            if (_live.Remove(reservation.Id))
             {
+                _recent.RemoveAll(r => r.Id == reservation.Id);
                 _perServer[reservation.Server] -= reservation.Amount;
             }
         }

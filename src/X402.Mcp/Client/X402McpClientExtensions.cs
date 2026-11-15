@@ -42,7 +42,7 @@ public static class X402McpClientExtensions
     /// <summary>
     /// Like <see cref="CallPaidToolAsync(McpClient, string, IReadOnlyDictionary{string, object?}?, IX402WalletV2, CancellationToken)"/>,
     /// but refuses, before signing anything, a payment over <paramref name="limiter"/>'s caps.
-    /// <paramref name="serverKey"/> names the server for the per-server cap and defaults to the connected server's name.
+    /// <paramref name="serverKey"/> names the server for the per-server cap and must come from your own config (the endpoint you chose), never from the server's self-reported name.
     /// </summary>
     /// <exception cref="X402PaymentException">No requirement the wallet may pay, or the payment is over a cap.</exception>
     public static async Task<CallToolResult> CallPaidToolAsync(
@@ -51,23 +51,34 @@ public static class X402McpClientExtensions
         IReadOnlyDictionary<string, object?>? arguments,
         IX402WalletV2 wallet,
         X402SpendLimiter limiter,
-        string? serverKey = null,
+        string serverKey,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(limiter);
+        ArgumentException.ThrowIfNullOrWhiteSpace(serverKey);
         var first = await client.CallToolAsync(toolName, arguments, cancellationToken: cancellationToken);
         if (first.GetPaymentRequired() is not { } paymentRequired)
         {
             return first;
         }
 
-        var server = serverKey ?? client.ServerInfo.Name;
+        var server = serverKey;
         X402SpendLimiter.Reservation? reservation = null;
         JsonObject payment;
         try
         {
-            payment = await CreatePaymentAsync(paymentRequired, wallet, cancellationToken, (amount) =>
+            payment = await CreatePaymentAsync(paymentRequired, wallet, cancellationToken, (requirement) =>
             {
+                if (!BigInteger.TryParse(requirement.Amount, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var amount))
+                {
+                    throw new X402PaymentException($"Server asked for an unreadable amount '{requirement.Amount}'.", paymentRequired);
+                }
+
+                if (limiter.Asset is { } asset && !string.Equals(asset, requirement.Asset, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new X402PaymentException($"Server asked for asset {requirement.Asset}; this limiter only allows {asset}.", paymentRequired);
+                }
+
                 if (limiter.TryReserve(server, amount, out var taken) is { } refusal)
                 {
                     throw new X402PaymentException(refusal, paymentRequired);
@@ -104,14 +115,14 @@ public static class X402McpClientExtensions
         PaymentRequiredResponse paymentRequired,
         IX402WalletV2 wallet,
         CancellationToken cancellationToken,
-        Action<BigInteger>? beforeSigning)
+        Action<PaymentRequirements>? beforeSigning)
     {
         var requirement = await wallet.SelectPaymentAsync(paymentRequired, cancellationToken)
             ?? throw new X402PaymentException(
                 $"Wallet on {wallet.Network} has no allowance for any requirement of {paymentRequired.Resource.Url}.",
                 paymentRequired);
 
-        beforeSigning?.Invoke(BigInteger.Parse(requirement.Amount));
+        beforeSigning?.Invoke(requirement);
         var header = await wallet.CreateHeaderAsync(requirement, cancellationToken);
         header.Payload.Resource = paymentRequired.Resource.Url;
 
