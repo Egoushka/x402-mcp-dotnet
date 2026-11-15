@@ -40,7 +40,7 @@ time without an account or an API key.
 
 - **Paid tools with one attribute.** `[PaidTool("1000")]` on a tool charges 0.001 USDC per call; tools without it
   stay free. Price, asset, recipient and network can be set per tool.
-- **A paying client.** `CallPaidToolAsync` pays only when the server asks, and only within the wallet's allowances.
+- **A paying client.** `CallPaidToolAsync` pays only when the server asks, and only within the wallet's allowances.  Pass an `X402SpendLimiter` for per-call, per-day and per-server caps.
 - **No charge for failed work.** If the tool throws or returns an error, nothing is settled.
 - **No keys on the server.** The payer signs; a facilitator (an x402 service that checks and submits payments)
   moves the USDC on chain.
