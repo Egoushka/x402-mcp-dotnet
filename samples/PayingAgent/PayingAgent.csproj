@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="x402.Client.EVM" Version="2.3.0" />
+    <PackageReference Include="x402.Client.EVM" Version="2.4.0" />
     <!-- Nethereum pulls Newtonsoft.Json 11.0.2, which has a known vulnerability. -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
