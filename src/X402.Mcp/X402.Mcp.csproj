@@ -18,9 +18,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ModelContextProtocol" Version="2.2.0" />
-    <PackageReference Include="x402" Version="2.3.0" />
-    <PackageReference Include="x402.Client" Version="2.3.0" />
+    <PackageReference Include="ModelContextProtocol" Version="2.4.0" />
+    <PackageReference Include="x402" Version="2.4.0" />
+    <PackageReference Include="x402.Client" Version="2.4.0" />
   </ItemGroup>
 
   <ItemGroup>
